@@ -46,7 +46,7 @@ The new charging policy went live on **20th April 2026 at 9 PM IST**.
 ### Identifying a successful senior citizen order
 - `services_orders.payment_eligible = false`
 - **No** entry in `ordergroups` for `vertical_id = 19`
-- `services_trackings.reason != 'SIGNATURE_DECLINED'`
+- `services_trackings.reason NOT IN ('SIGNATURE_DECLINED', 'ORDER_ADDRESS_UPDATED')`
 - **Date dimension:** `services_orders.created_at` (when order was placed)
 
 ---
@@ -94,7 +94,7 @@ The new charging policy went live on **20th April 2026 at 9 PM IST**.
 | 1 | `order_id` | VARCHAR | Join key to `services_orders.order_id`. | |
 | 2 | `user_id` | VARCHAR | Customer UUID. Same value as `services_orders.user_id`. | Prefer `services_orders.user_id` as primary source. |
 | 3 | `status` | VARCHAR | Current fulfilment status. | See Section 7a. |
-| 4 | `reason` | VARCHAR | Reason string for the current status. | Populated on every status. Key exclusion: `reason != 'SIGNATURE_DECLINED'` for senior citizen identification. |
+| 4 | `reason` | VARCHAR | Reason string for the current status. | Populated on every status. Key exclusions for senior citizen identification: `reason NOT IN ('SIGNATURE_DECLINED', 'ORDER_ADDRESS_UPDATED')`. `ORDER_ADDRESS_UPDATED` = address update before clicking "Order Now" (order not yet placed). `SIGNATURE_DECLINED` = order rejected at signature stage. |
 | 5 | `created_at` | TIMESTAMP | When the tracking row was first created (UTC). | |
 | 6 | `updated_at` | TIMESTAMP | Most recent status change timestamp (UTC). | Use for SLA / time-to-fulfil analysis. |
 | 7 | `__is_deleted` | BOOLEAN | Soft-delete flag. | Always filter: `__is_deleted = false`. |
@@ -147,7 +147,7 @@ The new charging policy went live on **20th April 2026 at 9 PM IST**.
 
 Lifecycle: `CREATED → PENDING → SUCCESS` or `FAILED`
 
-> `reason` is populated at every status — not only on `FAILED`. For senior citizen identification, the only exclusion needed is `reason != 'SIGNATURE_DECLINED'`.
+> `reason` is populated at every status — not only on `FAILED`. For senior citizen identification, exclude both `'SIGNATURE_DECLINED'` (order rejected at signature stage) and `'ORDER_ADDRESS_UPDATED'` (tracking row upserted when user updates address before clicking "Order Now" — not a placed order).
 
 ### 7b. `order_group_status` — `pgdb_gold.ordergroups`
 
@@ -246,7 +246,7 @@ LEFT JOIN pgdb_gold.ordergroups og
 WHERE so.payment_eligible = false
   AND so.type = 'CHEQUE_BOOK'
   AND so.__is_deleted = false
-  AND st.reason != 'SIGNATURE_DECLINED'
+  AND st.reason NOT IN ('SIGNATURE_DECLINED', 'ORDER_ADDRESS_UPDATED')
   AND st.__is_deleted = false
   AND og.source_txn_id IS NULL
   AND (so.year * 10000 + so.month * 100 + so.day) >= 20260421
@@ -298,7 +298,7 @@ FROM (
     WHERE so.payment_eligible = false
       AND so.type = 'CHEQUE_BOOK'
       AND so.__is_deleted = false
-      AND st.reason != 'SIGNATURE_DECLINED'
+      AND st.reason NOT IN ('SIGNATURE_DECLINED', 'ORDER_ADDRESS_UPDATED')
       AND st.__is_deleted = false
       AND og.source_txn_id IS NULL
       AND (so.year * 10000 + so.month * 100 + so.day) >= 20260421
